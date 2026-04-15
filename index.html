@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Space Assault</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><polygon points='16,2 28,28 16,22 4,28' fill='%2300bfff'/><polygon points='16,8 20,20 16,17 12,20' fill='white'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <canvas id="bg-canvas"></canvas>
+  <div id="rotate-message">
+    <div class="rotate-icon">&#128241;</div>
+    <div>Gira tu dispositivo a<br><strong>modo vertical</strong></div>
+  </div>
+  <div id="game-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+
+  <!-- Config -->
+  <script src="js/config.js"></script>
+
+  <!-- Managers -->
+  <script src="js/managers/AudioManager.js"></script>
+  <script src="js/managers/ParticleManager.js"></script>
+  <script src="js/managers/ScoreManager.js"></script>
+  <script src="js/managers/WaveManager.js"></script>
+  <script src="js/managers/GameManager.js"></script>
+
+  <!-- Entities -->
+  <script src="js/entities/Bullet.js"></script>
+  <script src="js/entities/EnemyBullet.js"></script>
+  <script src="js/entities/Player.js"></script>
+  <script src="js/entities/Enemy.js"></script>
+  <script src="js/entities/PowerUp.js"></script>
+  <script src="js/entities/Boss.js"></script>
+
+  <!-- Scenes -->
+  <script src="js/scenes/BootScene.js"></script>
+  <script src="js/scenes/MenuScene.js"></script>
+  <script src="js/scenes/GameScene.js"></script>
+  <script src="js/scenes/UIScene.js"></script>
+  <script src="js/scenes/GameOverScene.js"></script>
+  <script src="js/scenes/RankingScene.js"></script>
+
+  <script>
+    const game = new Phaser.Game({
+      type: Phaser.AUTO,
+      width: CONFIG.WIDTH,
+      height: CONFIG.HEIGHT,
+      parent: 'game-container',
+      backgroundColor: '#000011',
+      pixelArt: true,
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      },
+      physics: {
+        default: 'arcade',
+        arcade: {
+          gravity: { y: 0 },
+          debug: false
+        }
+      },
+      scene: [BootScene, MenuScene, GameScene, UIScene, GameOverScene, RankingScene]
+    });
+
+  </script>
+
+  <!-- Fondo de estrellas animadas -->
+  <script>
+    (function() {
+      const canvas = document.getElementById('bg-canvas');
+      const ctx = canvas.getContext('2d');
+      let w, h;
+
+      function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // 3 capas de estrellas con diferentes velocidades
+      const layers = [
+        { stars: [], speed: 15, alpha: 0.25, size: 1 },
+        { stars: [], speed: 35, alpha: 0.5,  size: 1.2 },
+        { stars: [], speed: 70, alpha: 0.85, size: 1.5 }
+      ];
+
+      // Generar estrellas
+      layers.forEach(layer => {
+        const count = Math.floor((w * h) / 8000);
+        for (let i = 0; i < count; i++) {
+          layer.stars.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            flicker: 0.7 + Math.random() * 0.3
+          });
+        }
+      });
+
+      // Alguna estrella azulada
+      const blueStars = [];
+      for (let i = 0; i < 8; i++) {
+        blueStars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          speed: 10 + Math.random() * 20,
+          size: 1.5 + Math.random() * 1
+        });
+      }
+
+      let lastTime = 0;
+
+      function draw(time) {
+        const dt = Math.min((time - lastTime) / 1000, 0.1);
+        lastTime = time;
+
+        ctx.fillStyle = '#000005';
+        ctx.fillRect(0, 0, w, h);
+
+        // Dibujar capas de estrellas
+        layers.forEach(layer => {
+          layer.stars.forEach(star => {
+            star.y += layer.speed * dt;
+            if (star.y > h) {
+              star.y = -2;
+              star.x = Math.random() * w;
+            }
+
+            const a = layer.alpha * star.flicker;
+            ctx.fillStyle = 'rgba(255,255,255,' + a + ')';
+            ctx.fillRect(star.x, star.y, layer.size, layer.size);
+          });
+        });
+
+        // Estrellas azules
+        blueStars.forEach(star => {
+          star.y += star.speed * dt;
+          if (star.y > h) {
+            star.y = -2;
+            star.x = Math.random() * w;
+          }
+          ctx.fillStyle = 'rgba(100,180,255,0.4)';
+          ctx.fillRect(star.x, star.y, star.size, star.size);
+        });
+
+        requestAnimationFrame(draw);
+      }
+
+      requestAnimationFrame(draw);
+    })();
+  </script>
+</body>
+</html>

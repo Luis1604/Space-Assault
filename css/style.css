@@ -1,0 +1,76 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: monospace;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  background: #000005;
+}
+
+#bg-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+#game-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+#game-container canvas {
+  border: 1px solid rgba(0, 100, 255, 0.12);
+  box-shadow:
+    0 0 30px rgba(0, 80, 200, 0.12),
+    0 0 60px rgba(0, 40, 120, 0.06);
+  border-radius: 2px;
+}
+
+/* Landscape on mobile - force portrait message */
+@media (orientation: landscape) and (max-height: 500px) {
+  #rotate-message {
+    display: flex !important;
+  }
+  #game-container {
+    display: none !important;
+  }
+}
+
+#rotate-message {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  color: #fff;
+  font-family: monospace;
+  font-size: 18px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  z-index: 9999;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#rotate-message .rotate-icon {
+  font-size: 48px;
+}

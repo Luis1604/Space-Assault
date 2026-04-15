@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Space Assault - Bot Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; height: 100vh; font-family: 'Courier New', monospace; overflow: hidden; }
+    #game-container { width: 480px; height: 720px; border-right: 2px solid #1a1a3e; flex-shrink: 0; }
+    #game-container canvas { display: block; width: 100% !important; height: 100% !important; }
+    #panel { flex: 1; background: #0a0a0a; display: flex; flex-direction: column; min-width: 320px; }
+    #header { background: #111; padding: 10px 16px; border-bottom: 1px solid #333; }
+    #header h1 { color: #0f0; font-size: 14px; margin-bottom: 6px; }
+    #header .subtitle { color: #555; font-size: 11px; }
+    #stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 12px 16px; background: #0d0d0d; border-bottom: 1px solid #222; }
+    .stat-box { background: #111; border: 1px solid #222; border-radius: 4px; padding: 8px; text-align: center; }
+    .stat-box .label { color: #555; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-box .value { font-size: 18px; font-weight: bold; margin-top: 2px; }
+    .v-green { color: #0f0; }
+    .v-cyan { color: #0af; }
+    .v-yellow { color: #fa0; }
+    .v-red { color: #f44; }
+    .v-purple { color: #a6f; }
+    .v-white { color: #fff; }
+    #bot-status { padding: 8px 16px; background: #0a1a0a; border-bottom: 1px solid #1a3a1a; color: #0f0; font-size: 11px; display: flex; align-items: center; gap: 8px; }
+    #bot-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #0f0; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    #log { flex: 1; overflow-y: auto; padding: 8px 16px; font-size: 11px; color: #666; }
+    #log .entry { padding: 1px 0; }
+    #log .kill { color: #f80; }
+    #log .death { color: #f44; }
+    #log .wave { color: #0af; font-weight: bold; }
+    #log .boss { color: #f0f; font-weight: bold; }
+    #log .powerup { color: #0f0; }
+    #log .error { color: #f44; background: #1a0505; padding: 2px 4px; border-radius: 2px; }
+    #log .milestone { color: #ff0; font-weight: bold; }
+    #controls { padding: 10px 16px; background: #111; border-top: 1px solid #333; display: flex; gap: 8px; }
+    #controls button { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 6px 14px; border-radius: 3px; font-family: monospace; font-size: 11px; cursor: pointer; }
+    #controls button:hover { background: #222; border-color: #0f0; }
+    #controls button.active { background: #0a2a0a; border-color: #0f0; }
+    #ai-display { padding: 8px 16px; background: #080810; border-bottom: 1px solid #222; font-size: 10px; color: #448; }
+    #ai-display .thinking { color: #66a; }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="panel">
+    <div id="header">
+      <h1>BOT PLAYER - Space Assault</h1>
+      <div class="subtitle">AI automatizado jugando el juego en tiempo real</div>
+    </div>
+    <div id="stats-grid">
+      <div class="stat-box"><div class="label">Score</div><div class="value v-green" id="s-score">0</div></div>
+      <div class="stat-box"><div class="label">Wave</div><div class="value v-cyan" id="s-wave">1</div></div>
+      <div class="stat-box"><div class="label">Vidas</div><div class="value v-red" id="s-lives">3</div></div>
+      <div class="stat-box"><div class="label">Kills</div><div class="value v-yellow" id="s-kills">0</div></div>
+      <div class="stat-box"><div class="label">Tiempo</div><div class="value v-white" id="s-time">0:00</div></div>
+      <div class="stat-box"><div class="label">Combo</div><div class="value v-purple" id="s-combo">x1</div></div>
+      <div class="stat-box"><div class="label">Frames</div><div class="value v-white" id="s-frames">0</div></div>
+      <div class="stat-box"><div class="label">Errores</div><div class="value v-red" id="s-errors">0</div></div>
+      <div class="stat-box"><div class="label">FPS</div><div class="value v-green" id="s-fps">60</div></div>
+    </div>
+    <div id="ai-display">
+      <div class="thinking" id="ai-thought">Iniciando...</div>
+    </div>
+    <div id="bot-status"><div class="dot"></div><span id="status-text">Bot iniciando...</span></div>
+    <div id="log"></div>
+    <div id="controls">
+      <button id="btn-speed" onclick="toggleSpeed()">Velocidad: 1x</button>
+      <button id="btn-god" onclick="toggleGod()">God Mode: OFF</button>
+      <button id="btn-restart" onclick="restartBot()">Reiniciar</button>
+      <button id="btn-clear" onclick="clearLog()">Limpiar Log</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/managers/AudioManager.js"></script>
+  <script src="js/managers/ParticleManager.js"></script>
+  <script src="js/managers/ScoreManager.js"></script>
+  <script src="js/managers/WaveManager.js"></script>
+  <script src="js/managers/GameManager.js"></script>
+  <script src="js/entities/Bullet.js"></script>
+  <script src="js/entities/EnemyBullet.js"></script>
+  <script src="js/entities/Player.js"></script>
+  <script src="js/entities/Enemy.js"></script>
+  <script src="js/entities/PowerUp.js"></script>
+  <script src="js/entities/Boss.js"></script>
+  <script src="js/scenes/BootScene.js"></script>
+  <script src="js/scenes/MenuScene.js"></script>
+  <script src="js/scenes/GameScene.js"></script>
+  <script src="js/scenes/UIScene.js"></script>
+  <script src="js/scenes/GameOverScene.js"></script>
+
+  <script>
+    // ============================================================
+    // Panel controls
+    // ============================================================
+    let speedMult = 1;
+    let godMode = false;
+    let botInstance = null;
+
+    function toggleSpeed() {
+      speedMult = speedMult === 1 ? 2 : speedMult === 2 ? 4 : 1;
+      document.getElementById('btn-speed').textContent = 'Velocidad: ' + speedMult + 'x';
+      if (botInstance && botInstance.game) botInstance.game.loop.targetFps = 60 * speedMult;
+    }
+
+    function toggleGod() {
+      godMode = !godMode;
+      const btn = document.getElementById('btn-god');
+      btn.textContent = 'God Mode: ' + (godMode ? 'ON' : 'OFF');
+      btn.classList.toggle('active', godMode);
+    }
+
+    function restartBot() {
+      if (botInstance && botInstance.game) botInstance.game.destroy(true);
+      startBot();
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    const logEl = document.getElementById('log');
+    let logCount = 0;
+
+    function botLog(msg, cls) {
+      logCount++;
+      const entry = document.createElement('div');
+      entry.className = 'entry ' + (cls || '');
+      const time = document.getElementById('s-time').textContent;
+      entry.textContent = '[' + time + '] ' + msg;
+      logEl.appendChild(entry);
+      // Mantener max 200 entradas
+      while (logEl.children.length > 200) logEl.removeChild(logEl.firstChild);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(msg) { document.getElementById('status-text').textContent = msg; }
+    function setThought(msg) { document.getElementById('ai-thought').textContent = msg; }
+
+    // ============================================================
+    // Bot AI
+    // ============================================================
+    class BotAI {
+      constructor(scene) {
+        this.scene = scene;
+        this.targetX = CONFIG.WIDTH / 2;
+        this.smoothX = CONFIG.WIDTH / 2;
+        this.lastDecision = 0;
+        this.decisionInterval = 33; // ~30 decisiones/s
+
+        // Danger map: 48 columnas
+        this.COLS = 48;
+        this.dangerMap = new Float32Array(this.COLS);
+        this.colW = CONFIG.WIDTH / this.COLS;
+
+        // Boss state
+        this.bossMode = false;
+        this.bossStrafePhase = 0;
+        this.bossLastSafe = CONFIG.WIDTH / 2;
+
+        // Evasion memory
+        this.lastDodgeDir = 1;
+        this.dodgeLockout = 0;
+
+        // Stats
+        this.dodgeCount = 0;
+        this.aimTime = 0;
+      }
+
+      update(time, delta) {
+        if (time - this.lastDecision < this.decisionInterval) return;
+        this.lastDecision = time;
+
+        const player = this.scene.player;
+        if (!player || player.isDead) return;
+
+        const boss = this.scene.boss;
+        this.bossMode = boss && boss.active && !boss.isDead && !boss.isEntering;
+
+        if (this.dodgeLockout > 0) this.dodgeLockout -= delta;
+
+        // 1. Mapa de peligro
+        this._buildDangerMap(player);
+
+        // 2. Decidir posicion objetivo
+        const danger = this._getDangerAt(player.x);
+        const inDanger = danger > 0.04;
+
+        if (inDanger) {
+          this.targetX = this._dodge(player);
+        } else if (this.bossMode) {
+          this.targetX = this._decideBoss(player, boss, delta);
+        } else {
+          this.targetX = this._decideNormal(player);
+        }
+
+        // 3. Smoothing del movimiento (no snap, interpolar)
+        const lerpSpeed = inDanger ? 0.25 : 0.12;
+        this.smoothX += (this.targetX - this.smoothX) * lerpSpeed;
+        this.smoothX = Math.max(20, Math.min(CONFIG.WIDTH - 20, this.smoothX));
+
+        // 4. Mover jugador
+        const dx = this.smoothX - player.x;
+        if (Math.abs(dx) > 5) {
+          player.setVelocityX(Math.sign(dx) * player.speed * Math.min(1, Math.abs(dx) / 40));
+        } else {
+          player.setVelocityX(0);
+        }
+
+        // 5. Disparar
+        const cooldown = player.currentPowerUp === 'RAPID_FIRE' ? 100 : player.shootCooldown;
+        if (time > player.lastShot + cooldown) {
+          player.shoot(this.scene.bullets);
+          player.lastShot = time;
+        }
+      }
+
+      _buildDangerMap(player) {
+        this.dangerMap.fill(0);
+
+        // --- Balas enemigas ---
+        this.scene.enemyBullets.children.iterate((b) => {
+          if (!b || !b.active || !b.body) return;
+          const vx = b.body.velocity.x;
+          const vy = b.body.velocity.y;
+          const speed = Math.sqrt(vx * vx + vy * vy);
+          if (speed < 10) return;
+
+          // Proyectar a 5 tiempos futuros
+          for (let t = 0.05; t <= 0.6; t += 0.1) {
+            const fx = b.x + vx * t;
+            const fy = b.y + vy * t;
+            const dy = fy - player.y;
+
+            // Solo si se acerca al jugador
+            if (dy > -180 && dy < 40) {
+              const proximity = 1 - (Math.abs(dy) / 180);
+              const timeUrgency = 1 / (t * 3 + 0.5);
+              const weight = proximity * timeUrgency * 4;
+
+              this._addDanger(fx, weight);
+            }
+          }
+        });
+
+        // --- Enemigos cercanos ---
+        this.scene.enemies.children.iterate((e) => {
+          if (!e || !e.active || !e.body) return;
+          const dy = player.y - e.y;
+          if (dy < -20 || dy > 300) return;
+
+          // Enemigo encima: peligro alto
+          const proximity = Math.max(0, 1 - (dy / 300));
+          const weight = proximity * 6;
+          this._addDanger(e.x, weight);
+
+          // Proyectar movimiento del enemigo
+          if (e.body.velocity) {
+            const fx = e.x + e.body.velocity.x * 0.4;
+            const fy = e.y + e.body.velocity.y * 0.4;
+            const fdy = player.y - fy;
+            if (fdy > 0 && fdy < 200) {
+              this._addDanger(fx, weight * 0.5);
+            }
+          }
+        });
+
+        // --- Boss balas adicionales: mas peso ---
+        if (this.bossMode) {
+          const boss = this.scene.boss;
+          if (boss && boss.active) {
+            // Zona directamente debajo del boss es peligrosa
+            this._addDanger(boss.x, 2);
+          }
+        }
+      }
+
+      _addDanger(x, weight) {
+        const col = Math.floor(x / this.colW);
+        if (col < 0 || col >= this.COLS) return;
+        this.dangerMap[col] += weight;
+        // Spread
+        const spreads = [
+          [1, 0.6], [2, 0.3], [3, 0.1]
+        ];
+        for (const [off, mult] of spreads) {
+          if (col - off >= 0) this.dangerMap[col - off] += weight * mult;
+          if (col + off < this.COLS) this.dangerMap[col + off] += weight * mult;
+        }
+      }
+
+      _getDangerAt(x) {
+        const col = Math.floor(x / this.colW);
+        if (col < 0 || col >= this.COLS) return 0;
+        return this.dangerMap[col];
+      }
+
+      _findSafestZone(player, preferNear) {
+        let bestCol = Math.floor(player.x / this.colW);
+        let bestScore = Infinity;
+
+        for (let c = 2; c < this.COLS - 2; c++) {
+          // Peligro en esta columna + vecinas (zona ancha)
+          let zoneDanger = this.dangerMap[c] * 2;
+          zoneDanger += (this.dangerMap[c - 1] || 0);
+          zoneDanger += (this.dangerMap[c + 1] || 0);
+
+          // Penalizar distancia (preferir moverse poco)
+          const dist = Math.abs(c - Math.floor(player.x / this.colW));
+          const distPenalty = preferNear ? dist * 0.01 : dist * 0.003;
+
+          // Penalizar bordes
+          const edgePenalty = (c < 5 || c > this.COLS - 5) ? 0.5 : 0;
+
+          const score = zoneDanger + distPenalty + edgePenalty;
+          if (score < bestScore) {
+            bestScore = score;
+            bestCol = c;
+          }
+        }
+
+        return bestCol * this.colW + this.colW / 2;
+      }
+
+      _dodge(player) {
+        this.dodgeCount++;
+        const safeX = this._findSafestZone(player, true);
+
+        // Evitar ping-pong: si el safe spot esta muy cerca de donde estamos, moverse mas
+        if (Math.abs(safeX - player.x) < 25) {
+          const escapeDir = this.lastDodgeDir;
+          const escapeX = player.x + escapeDir * 80;
+          const clampedX = Math.max(30, Math.min(CONFIG.WIDTH - 30, escapeX));
+
+          // Verificar si la direccion de escape es segura
+          if (this._getDangerAt(clampedX) < this._getDangerAt(player.x)) {
+            setThought('DODGE #' + this.dodgeCount + ' -> escape x=' + Math.round(clampedX));
+            return clampedX;
+          } else {
+            this.lastDodgeDir *= -1;
+            const altX = Math.max(30, Math.min(CONFIG.WIDTH - 30, player.x - escapeDir * 80));
+            setThought('DODGE #' + this.dodgeCount + ' -> reverse x=' + Math.round(altX));
+            return altX;
+          }
+        }
+
+        if (safeX > player.x) this.lastDodgeDir = 1;
+        else this.lastDodgeDir = -1;
+
+        setThought('DODGE #' + this.dodgeCount + ' -> safe x=' + Math.round(safeX));
+        return safeX;
+      }
+
+      _decideNormal(player) {
+        // Power-up cercano
+        let bestPU = null;
+        let bestPUScore = 0;
+        this.scene.powerups.children.iterate((p) => {
+          if (!p || !p.active) return;
+          const dx = Math.abs(p.x - player.x);
+          const dy = Math.abs(p.y - player.y);
+          if (dy < 300) {
+            // Priorizar por tipo y cercania
+            let typeBonus = 1;
+            if (p.powerType === 'SHIELD' || p.powerType === 'EXTRA_LIFE') typeBonus = 3;
+            if (p.powerType === 'TRIPLE_SHOT' || p.powerType === 'RAPID_FIRE') typeBonus = 2;
+            const score = typeBonus / (dx + dy + 10);
+            if (score > bestPUScore) {
+              bestPUScore = score;
+              bestPU = p;
+            }
+          }
+        });
+
+        if (bestPU && bestPUScore > 0.005) {
+          // Verificar que ir al power-up no es suicida
+          if (this._getDangerAt(bestPU.x) < 0.1) {
+            setThought('Power-up ' + bestPU.powerType + ' -> x=' + Math.round(bestPU.x));
+            return bestPU.x;
+          }
+        }
+
+        // Apuntar al mejor enemigo
+        let bestX = player.x;
+        let bestScore = -1;
+        this.scene.enemies.children.iterate((e) => {
+          if (!e || !e.active) return;
+
+          // Score: priorizar enemigos alineados y con vida baja
+          const alignScore = 1 / (Math.abs(e.x - player.x) + 15);
+          const distScore = 1 / (Math.abs(e.y - player.y) + 40);
+          const hpBonus = (e.hp <= 1) ? 1.5 : 1;
+          const typeBonus = (e.enemyType === 'SNIPER') ? 2 : (e.enemyType === 'TANK') ? 1.3 : 1;
+
+          const score = (alignScore * 4 + distScore) * hpBonus * typeBonus;
+          if (score > bestScore) {
+            bestScore = score;
+            bestX = e.x;
+          }
+        });
+
+        if (bestScore > 0) {
+          // Solo ir si no es peligroso
+          if (this._getDangerAt(bestX) < 0.08) {
+            setThought('Apuntando enemigo x=' + Math.round(bestX));
+            return bestX;
+          } else {
+            // Apuntar pero desde posicion segura
+            const safeX = this._findSafestZone(player, false);
+            setThought('Apuntando desde zona segura x=' + Math.round(safeX));
+            return safeX;
+          }
+        }
+
+        // Patrullar con movimiento organico
+        const patrol = CONFIG.WIDTH / 2 + Math.sin(Date.now() * 0.0015) * 140 + Math.cos(Date.now() * 0.0007) * 60;
+        setThought('Patrullando x=' + Math.round(patrol));
+        return patrol;
+      }
+
+      _decideBoss(player, boss, delta) {
+        this.bossStrafePhase += delta * 0.002;
+
+        // Posicion ideal: debajo del boss pero oscilando para esquivar
+        const strafeAmp = 90 + Math.sin(this.bossStrafePhase * 0.7) * 30;
+        const strafeX = boss.x + Math.sin(this.bossStrafePhase) * strafeAmp;
+
+        // Verificar si strafeX es seguro
+        const strafeDanger = this._getDangerAt(strafeX);
+        let targetX;
+
+        if (strafeDanger > 0.06) {
+          // Posicion de strafe no es segura, buscar alternativa
+          targetX = this._findSafestZone(player, false);
+          this.bossLastSafe = targetX;
+          setThought('BOSS ' + boss.bossName + ' HP:' + boss.hp + '/' + boss.maxHp + ' | Evadiendo patron');
+        } else {
+          targetX = strafeX;
+          this.bossLastSafe = targetX;
+          setThought('BOSS ' + boss.bossName + ' HP:' + boss.hp + '/' + boss.maxHp + ' | Atacando');
+        }
+
+        return Math.max(25, Math.min(CONFIG.WIDTH - 25, targetX));
+      }
+    }
+
+    // ============================================================
+    // Bot Game Scene (extiende GameScene real)
+    // ============================================================
+    class BotGameScene extends Phaser.Scene {
+      constructor() { super({ key: 'BotGameScene' }); }
+
+      init() {
+        this.gameManager = this.registry.get('gameManager');
+        if (!this.gameManager) {
+          this.gameManager = new GameManager();
+          this.registry.set('gameManager', this.gameManager);
+        }
+        this.gameManager.init();
+        this.gameManager.startGame();
+
+        this.botStats = { kills: 0, deaths: 0, waves: 1, errors: 0, startTime: Date.now(), frames: 0, lastFpsTime: Date.now(), fpsFrames: 0, fps: 60 };
+      }
+
+      create() {
+        try {
+          botLog('create() iniciado...', '');
+
+          // Parallax
+          this.starLayers = [];
+          CONFIG.STAR_LAYERS.forEach((layer) => {
+            const stars = [];
+            for (let i = 0; i < layer.count; i++) {
+              const star = this.add.sprite(Phaser.Math.Between(0, CONFIG.WIDTH), Phaser.Math.Between(0, CONFIG.HEIGHT), 'star');
+              star.setAlpha(layer.alpha).setDepth(0);
+              star.speedY = layer.speed;
+              stars.push(star);
+            }
+            this.starLayers.push(stars);
+          });
+          botLog('Parallax creado', '');
+
+          // Pools
+          this.bullets = new BulletPool(this);
+          this.enemyBullets = new EnemyBulletPool(this);
+          this.enemies = new EnemyPool(this);
+          this.powerups = new PowerUpPool(this);
+          this.boss = new Boss(this, 0, 0);
+          this.bossActive = false;
+          botLog('Pools creados', '');
+
+          // Player
+          this.player = new Player(this, CONFIG.WIDTH / 2, CONFIG.HEIGHT - 70);
+          botLog('Player creado', '');
+
+          // shakeCamera
+          this.shakeCamera = (i, d) => { this.cameras.main.shake(d, i / 1000); };
+
+          // Overlaps
+          this.physics.add.overlap(this.bullets, this.enemies, this._onBulletEnemy, null, this);
+          this.physics.add.overlap(this.bullets, this.boss, this._onBulletBoss, null, this);
+          this.physics.add.overlap(this.enemyBullets, this.player, this._onEBulletPlayer, null, this);
+          this.physics.add.overlap(this.bullets, this.enemyBullets, this._onBulletClear, null, this);
+          this.physics.add.overlap(this.enemies, this.player, this._onEnemyPlayer, null, this);
+          this.physics.add.overlap(this.powerups, this.player, this._onPowerUp, null, this);
+          this.physics.add.overlap(this.boss, this.player, this._onBossPlayer, null, this);
+          botLog('Overlaps registrados', '');
+
+          // Eventos
+          this.events.on('player-dead', this._onPlayerDead, this);
+          this.events.on('boss-dead', this._onBossDead, this);
+
+          this.waveTransition = false;
+
+          // Bot AI
+          this.botAI = new BotAI(this);
+
+          // Start wave
+          this.time.delayedCall(500, () => {
+            try {
+              this._startNextWave();
+              this.gameManager.audio.startMusic();
+            } catch (e) {
+              botLog('ERROR en delayedCall: ' + e.message, 'error');
+            }
+          });
+
+          setStatus('Bot jugando - Wave 1');
+          botLog('Bot iniciado con personalidad: agresion=' +
+            this.botAI.personality.aggression.toFixed(2) + ' esquive=' +
+            Math.round(this.botAI.personality.dodgeRadius) + 'px precision=' +
+            this.botAI.personality.accuracy.toFixed(2));
+          botLog('create() completado OK', '');
+
+        } catch (e) {
+          botLog('ERROR en create(): ' + e.message, 'error');
+          botLog('Stack: ' + e.stack, 'error');
+          this.botStats.errors++;
+        }
+      }
+
+      update(time, delta) {
+        this.botStats.frames++;
+        this.botStats.fpsFrames++;
+
+        if (!this.gameManager || !this.gameManager.isPlaying()) {
+          this._updatePanel();
+          return;
+        }
+
+        // FPS counter
+        const now = Date.now();
+        if (now - this.botStats.lastFpsTime > 1000) {
+          this.botStats.fps = this.botStats.fpsFrames;
+          this.botStats.fpsFrames = 0;
+          this.botStats.lastFpsTime = now;
+        }
+
+        // God mode
+        if (godMode && this.player && !this.player.isDead) {
+          this.player.lives = CONFIG.PLAYER_LIVES;
+          this.player.isInvincible = true;
+        }
+
+        try {
+          // Bot AI controla al jugador
+          this.botAI.update(time, delta);
+
+          // Parallax
+          this.starLayers.forEach((stars) => {
+            stars.forEach((star) => {
+              star.y += star.speedY * (delta / 1000);
+              if (star.y > CONFIG.HEIGHT + 5) { star.y = -5; star.x = Phaser.Math.Between(0, CONFIG.WIDTH); }
+            });
+          });
+
+          // Wave check
+          if (!this.bossActive && this.gameManager.waves.isWaveComplete() && !this.waveTransition) {
+            this._onWaveComplete();
+          }
+
+          // Combo
+          this.gameManager.score.updateCombo(delta);
+          this.events.emit('score-changed', this.gameManager.getScore());
+          this.events.emit('combo-changed', this.gameManager.score.getComboMultiplier(), this.gameManager.score.getCombo());
+
+          // Update panel
+          this._updatePanel();
+
+        } catch (e) {
+          this.botStats.errors++;
+          botLog('ERROR: ' + e.message, 'error');
+          document.getElementById('s-errors').textContent = this.botStats.errors;
+        }
+      }
+
+      _updatePanel() {
+        document.getElementById('s-score').textContent = this.gameManager.getScore();
+        document.getElementById('s-wave').textContent = this.gameManager.waves.currentWave || 1;
+        document.getElementById('s-lives').textContent = this.player ? this.player.lives : 0;
+        document.getElementById('s-kills').textContent = this.botStats.kills;
+        document.getElementById('s-combo').textContent = 'x' + this.gameManager.score.getComboMultiplier();
+        document.getElementById('s-frames').textContent = this.botStats.frames;
+        document.getElementById('s-fps').textContent = this.botStats.fps;
+        document.getElementById('s-errors').textContent = this.botStats.errors;
+
+        const elapsed = Math.floor((Date.now() - this.botStats.startTime) / 1000);
+        const min = Math.floor(elapsed / 60);
+        const sec = elapsed % 60;
+        document.getElementById('s-time').textContent = min + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+
+      // Wave management
+      _startNextWave() {
+        this.waveTransition = false;
+        const nextWave = this.gameManager.waves.currentWave + 1;
+
+        this.enemies.children.iterate((e) => { if (e && e.active) e.deactivate(); });
+
+        if (nextWave > 0 && nextWave % CONFIG.BOSS_EVERY === 0) {
+          this.gameManager.waves.currentWave = nextWave;
+          this.gameManager.waves.waveActive = false;
+          this.gameManager.waves.enemiesRemaining = 0;
+          this.gameManager.waves.isSpawning = false;
+          this.events.emit('wave-started', nextWave);
+          this._spawnBoss();
+        } else {
+          this.gameManager.waves.startNextWave(this, this.enemies);
+          this.gameManager.audio.play('wave');
+        }
+
+        this.botStats.waves = this.gameManager.waves.currentWave;
+        setStatus('Bot jugando - Wave ' + this.botStats.waves);
+        botLog('Wave ' + this.botStats.waves + ' iniciada', 'wave');
+      }
+
+      _spawnBoss() {
+        this.bossActive = true;
+        const lvl = Math.floor(this.gameManager.waves.currentWave / CONFIG.BOSS_EVERY);
+        this.events.emit('boss-warning');
+        botLog('BOSS WARNING - Nivel ' + lvl, 'boss');
+
+        this.time.delayedCall(2000, () => {
+          if (!this.gameManager.isPlaying()) return;
+          this.boss.spawn(lvl);
+          this.gameManager.audio.play('wave');
+          botLog('Boss "' + this.boss.bossName + '" spawneado (HP: ' + this.boss.hp + ')', 'boss');
+        });
+      }
+
+      _onWaveComplete() {
+        this.waveTransition = true;
+        this.enemyBullets.children.iterate((b) => { if (b && b.active) b.deactivate(); });
+        botLog('Wave ' + this.gameManager.waves.currentWave + ' completada!', 'wave');
+
+        this.time.delayedCall(CONFIG.WAVE_PAUSE, () => {
+          if (this.gameManager.isPlaying()) this._startNextWave();
+        });
+      }
+
+      _onBossDead() {
+        this.bossActive = false;
+        this.shakeCamera(8, 600);
+        this.enemyBullets.children.iterate((b) => { if (b && b.active) b.deactivate(); });
+
+        this.powerups.drop(this.boss.x, this.boss.y);
+        const ap = this.powerups.countActive(true);
+        if (ap === 0) { const pu = this.powerups.getFirstDead(false); if (pu) pu.spawn(this.boss.x, this.boss.y); }
+
+        botLog('BOSS ELIMINADO! +' + this.boss.scoreValue + ' pts', 'boss');
+        this.botStats.kills++;
+
+        this.waveTransition = true;
+        this.time.delayedCall(CONFIG.WAVE_PAUSE, () => {
+          if (this.gameManager.isPlaying()) this._startNextWave();
+        });
+      }
+
+      // Collision callbacks
+      _onBulletEnemy(bullet, enemy) {
+        if (!bullet.active || !enemy.active) return;
+        const ex = enemy.x, ey = enemy.y, eScore = enemy.scoreValue;
+        bullet.deactivate();
+        const killed = enemy.takeDamage();
+        if (killed) {
+          this.gameManager.waves.onEnemyDestroyed();
+          this.powerups.drop(ex, ey);
+          this.botStats.kills++;
+          const mult = this.gameManager.score.getComboMultiplier();
+          const pts = eScore * mult;
+          const txt = this.add.text(ex, ey, '+' + pts, { fontFamily: 'monospace', fontSize: '14px', color: mult > 1 ? '#ff8800' : '#ffff00' }).setOrigin(0.5).setDepth(30);
+          this.tweens.add({ targets: txt, y: ey - 40, alpha: 0, duration: 700, onComplete: () => txt.destroy() });
+        }
+      }
+
+      _onBulletBoss(objA, objB) {
+        const bullet = objA.canBeHit ? objB : objA;
+        const boss = objA.canBeHit ? objA : objB;
+        if (!bullet.active || !boss.active || !boss.canBeHit || !boss.canBeHit()) return;
+        bullet.deactivate();
+        boss.takeDamage();
+      }
+
+      _onEBulletPlayer(player, bullet) {
+        if (!bullet.active || player.isInvincible || player.isDead) return;
+        bullet.deactivate();
+        player.takeDamage();
+        if (!player.isDead) { this.shakeCamera(5, 200); botLog('Jugador golpeado! Vidas: ' + player.lives, 'death'); }
+      }
+
+      _onBulletClear(pBullet, eBullet) {
+        if (!pBullet.active || !eBullet.active) return;
+        eBullet.deactivate();
+        this.gameManager.particles.explode(this, eBullet.x, eBullet.y, 3);
+      }
+
+      _onEnemyPlayer(player, enemy) {
+        if (!enemy.active || player.isInvincible || player.isDead) return;
+        enemy.deactivate();
+        this.gameManager.waves.onEnemyDestroyed();
+        this.gameManager.particles.explode(this, enemy.x, enemy.y);
+        player.takeDamage();
+        if (!player.isDead) { this.shakeCamera(5, 200); botLog('Colision con enemigo! Vidas: ' + player.lives, 'death'); }
+      }
+
+      _onPowerUp(player, powerup) {
+        if (!powerup.active || player.isDead) return;
+        const type = powerup.powerType;
+        powerup.collect(player);
+        botLog('Power-up: ' + type, 'powerup');
+      }
+
+      _onBossPlayer(objA, objB) {
+        const boss = objA.onContactPlayer ? objA : objB;
+        const player = objA.onContactPlayer ? objB : objA;
+        if (!boss.active || boss.isDead || boss.isEntering || !boss.onContactPlayer) return;
+        if (player.isInvincible || player.isDead) return;
+        if (!boss.onContactPlayer()) return;
+        player.takeDamage();
+        if (!player.isDead) this.shakeCamera(5, 200);
+      }
+
+      _onPlayerDead() {
+        this.gameManager.particles.bigExplosion(this, this.player.x, this.player.y);
+        this.shakeCamera(10, 500);
+        this.gameManager.audio.stopMusic();
+        this.gameManager.gameOver();
+        this.gameManager.waves.cleanup(this);
+        if (this.boss && this.boss.active) { this.boss.cleanup(); this.boss.deactivate(); }
+
+        this.botStats.deaths++;
+        botLog('GAME OVER! Score: ' + this.gameManager.getScore() + ' | Wave: ' + this.botStats.waves + ' | Kills: ' + this.botStats.kills, 'death');
+
+        if (this.botStats.errors === 0) {
+          botLog('Sin errores de JS durante la partida', 'milestone');
+        } else {
+          botLog(this.botStats.errors + ' errores de JS detectados', 'error');
+        }
+
+        setStatus('Game Over - Reiniciando en 3s...');
+        setThought('Analizando partida... Score=' + this.gameManager.getScore() + ' en ' + this.botStats.waves + ' waves');
+
+        this.time.delayedCall(3000, () => {
+          this.scene.restart();
+        });
+      }
+
+      shutdown() {
+        this.events.off('player-dead', this._onPlayerDead, this);
+        this.events.off('boss-dead', this._onBossDead, this);
+        this.gameManager.waves.cleanup(this);
+        if (this.boss && this.boss.active) this.boss.cleanup();
+      }
+    }
+
+    // ============================================================
+    // Start bot
+    // ============================================================
+    // BootScene custom que va directo al bot en vez de MenuScene
+    class BotBootScene extends BootScene {
+      constructor() {
+        super();
+      }
+      create() {
+        // Generar todas las texturas del juego
+        this.generatePlayerTexture();
+        this.generateBulletTexture();
+        this.generateEnemyBasicTexture();
+        this.generateEnemyFastTexture();
+        this.generateEnemyTankTexture();
+        this.generateEnemyBulletTexture();
+        this.generateStarTexture();
+        this.generateExplosionParticle();
+        this.generateLifeIcon();
+        if (this.generateEnemySplitterTexture) this.generateEnemySplitterTexture();
+        if (this.generateEnemySniperTexture) this.generateEnemySniperTexture();
+        if (this.generateEnemySwarmTexture) this.generateEnemySwarmTexture();
+        if (this.generatePowerUpTextures) this.generatePowerUpTextures();
+        if (this.generateBossTexture) this.generateBossTexture();
+        if (this.generateShieldTexture) this.generateShieldTexture();
+
+        // Ir directo al bot
+        this.scene.start('BotGameScene');
+      }
+    }
+
+    function startBot() {
+      botInstance = {};
+      botInstance.game = new Phaser.Game({
+        type: Phaser.AUTO,
+        width: CONFIG.WIDTH,
+        height: CONFIG.HEIGHT,
+        parent: 'game-container',
+        backgroundColor: '#000011',
+        pixelArt: true,
+        physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+        scene: [BotBootScene, BotGameScene]
+      });
+
+      botLog('Phaser iniciado', 'wave');
+    }
+
+    startBot();
+  </script>
+</body>
+</html>
